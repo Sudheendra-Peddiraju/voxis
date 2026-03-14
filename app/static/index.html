@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VoxIS Demo</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 760px;
+      margin: 40px auto;
+      padding: 0 16px;
+      background: #f7f9fc;
+      color: #1f2937;
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+    }
+
+    h1 {
+      margin-bottom: 8px;
+    }
+
+    p.subtitle {
+      margin-top: 0;
+      color: #6b7280;
+    }
+
+    label {
+      display: block;
+      margin-top: 12px;
+      font-weight: 600;
+    }
+
+    input[type="text"],
+    input[type="file"] {
+      width: 100%;
+      margin-top: 6px;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+
+    button {
+      margin-top: 16px;
+      padding: 10px 18px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .primary {
+      background: #2563eb;
+      color: white;
+    }
+
+    .secondary {
+      background: #059669;
+      color: white;
+    }
+
+    .result {
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 8px;
+      background: #f3f4f6;
+      white-space: pre-wrap;
+    }
+
+    .success {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .fail {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .small {
+      font-size: 14px;
+      color: #6b7280;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>VoxIS Demo</h1>
+    <p class="subtitle">
+      Revocable voice identity demo using protected speaker templates.
+    </p>
+
+    <label for="user_id">User ID</label>
+    <input type="text" id="user_id" value="user_1" />
+
+    <label for="tenant_id">Tenant ID</label>
+    <input type="text" id="tenant_id" value="tenant_alpha" />
+
+    <p class="small">
+      Use the same User ID and Tenant ID for both enrollment and verification.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>Enroll</h2>
+    <label for="enroll_file">Enrollment audio</label>
+    <input type="file" id="enroll_file" accept=".wav,.flac" />
+
+    <button class="primary" onclick="enrollUser()">Enroll User</button>
+
+    <div id="enroll_result" class="result">No enrollment yet.</div>
+  </div>
+
+  <div class="card">
+    <h2>Verify</h2>
+    <label for="verify_file">Verification audio</label>
+    <input type="file" id="verify_file" accept=".wav,.flac" />
+
+    <button class="secondary" onclick="verifyUser()">Verify User</button>
+
+    <div id="verify_result" class="result">No verification yet.</div>
+  </div>
+
+  <script>
+    async function enrollUser() {
+      const userId = document.getElementById("user_id").value.trim();
+      const tenantId = document.getElementById("tenant_id").value.trim();
+      const fileInput = document.getElementById("enroll_file");
+      const resultBox = document.getElementById("enroll_result");
+
+      if (!userId || !tenantId) {
+        resultBox.className = "result fail";
+        resultBox.textContent = "Please provide both user_id and tenant_id.";
+        return;
+      }
+
+      if (!fileInput.files.length) {
+        resultBox.className = "result fail";
+        resultBox.textContent = "Please select an enrollment audio file.";
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("user_id", userId);
+      formData.append("tenant_id", tenantId);
+      formData.append("file", fileInput.files[0]);
+
+      resultBox.className = "result";
+      resultBox.textContent = "Enrollment in progress...";
+
+      try {
+        const response = await fetch("/enroll", {
+          method: "POST",
+          body: formData
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.detail || "Enrollment failed.");
+        }
+
+        resultBox.className = "result success";
+        resultBox.textContent =
+          `Enrollment successful\n` +
+          `User ID: ${data.user_id}\n` +
+          `Tenant ID: ${data.tenant_id}\n` +
+          `Segments used: ${data.num_segments_used}\n` +
+          `Segment duration: ${data.segment_duration_sec} sec\n` +
+          `Template shape: ${JSON.stringify(data.template_shape)}`;
+      } catch (error) {
+        resultBox.className = "result fail";
+        resultBox.textContent = `Enrollment failed: ${error.message}`;
+      }
+    }
+
+    async function verifyUser() {
+      const userId = document.getElementById("user_id").value.trim();
+      const tenantId = document.getElementById("tenant_id").value.trim();
+      const fileInput = document.getElementById("verify_file");
+      const resultBox = document.getElementById("verify_result");
+
+      if (!userId || !tenantId) {
+        resultBox.className = "result fail";
+        resultBox.textContent = "Please provide both user_id and tenant_id.";
+        return;
+      }
+
+      if (!fileInput.files.length) {
+        resultBox.className = "result fail";
+        resultBox.textContent = "Please select a verification audio file.";
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("user_id", userId);
+      formData.append("tenant_id", tenantId);
+      formData.append("file", fileInput.files[0]);
+
+      resultBox.className = "result";
+      resultBox.textContent = "Verification in progress...";
+
+      try {
+        const response = await fetch("/verify", {
+          method: "POST",
+          body: formData
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.detail || "Verification failed.");
+        }
+
+        const statusText = data.verified ? "VERIFIED" : "REJECTED";
+        const statusClass = data.verified ? "result success" : "result fail";
+
+        resultBox.className = statusClass;
+        resultBox.textContent =
+          `Verification result: ${statusText}\n` +
+          `User ID: ${data.user_id}\n` +
+          `Tenant ID: ${data.tenant_id}\n` +
+          `Score: ${data.score}\n` +
+          `Threshold: ${data.threshold}\n` +
+          `Embedding dim: ${data.embedding_dim}`;
+      } catch (error) {
+        resultBox.className = "result fail";
+        resultBox.textContent = `Verification failed: ${error.message}`;
+      }
+    }
+  </script>
+</body>
+</html>

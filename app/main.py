@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from voxis.config import VoxISConfig
 from voxis.embedding import ECAPAEmbedder
@@ -17,7 +19,6 @@ app = FastAPI(title="VoxIS API", version="0.1.0")
 
 config = VoxISConfig()
 
-# Load shared backend objects once at startup/import time
 embedder = ECAPAEmbedder(config)
 template_store = TemplateStore(db_path=config.db_path)
 
@@ -34,11 +35,13 @@ verification_service = VerificationService(
     threshold=config.verification_threshold,
 )
 
+BASE_DIR = Path(__file__).resolve().parent
+STATIC_DIR = BASE_DIR / "static"
+
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
 
 def _save_upload_to_temp(upload: UploadFile, tmp_dir: Path) -> Path:
-    """
-    Save an uploaded file to a temporary directory and return the saved path.
-    """
     filename = upload.filename or "uploaded_audio"
     safe_name = Path(filename).name
     out_path = tmp_dir / safe_name
@@ -47,6 +50,11 @@ def _save_upload_to_temp(upload: UploadFile, tmp_dir: Path) -> Path:
         shutil.copyfileobj(upload.file, f)
 
     return out_path
+
+
+@app.get("/")
+def home() -> FileResponse:
+    return FileResponse(STATIC_DIR / "index.html")
 
 
 @app.get("/health")
@@ -65,11 +73,6 @@ def enroll(
     tenant_id: Annotated[str, Form(...)],
     file: Annotated[UploadFile, File(...)],
 ) -> dict:
-    """
-    Enroll a user from one enrollment audio file.
-    The audio is internally split into fixed-length segments,
-    embeddings are averaged, and the protected template is stored.
-    """
     with tempfile.TemporaryDirectory() as tmp:
         tmp_dir = Path(tmp)
         audio_path = _save_upload_to_temp(file, tmp_dir)
@@ -106,9 +109,6 @@ def verify(
     tenant_id: Annotated[str, Form(...)],
     file: Annotated[UploadFile, File(...)],
 ) -> dict:
-    """
-    Verify a probe audio file against the enrolled protected template.
-    """
     with tempfile.TemporaryDirectory() as tmp:
         tmp_dir = Path(tmp)
         probe_path = _save_upload_to_temp(file, tmp_dir)
